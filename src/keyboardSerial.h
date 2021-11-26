@@ -2,8 +2,8 @@
 #include <SoftwareSerial.h>
 SoftwareSerial keySerial(9, 10); // RX (D2), TX
 typedef struct {
-  int lowerCase;
-  int upperCase;
+  uint8_t lowerCase;
+  uint8_t upperCase;
   bool pressed;
   uint8_t down;
   uint8_t up;
@@ -14,18 +14,19 @@ Key keys[]{
     {KEY_LEFT_SHIFT, 0, false, 59, 27},
     {KEY_CAPS_LOCK, 0, false, 74, 66},
 };
+uint8_t modifiers[] = {KEY_LEFT_SHIFT, KEY_CAPS_LOCK};
+bool debugging = false;
+bool debuggingHeavy = false;
 // Find index for special chars
-uint8_t findIndex(int key) {
-  uint8_t index = 255; // 255=Unknown (shonky but keeping memory down)
+uint8_t findKeyIndexFromAction(uint8_t action) {
   for (uint8_t i = 0; i < sizeof(keys) / sizeof(Key); i++) {
-    // Only checks lowerCase
-    if (key == keys[i].lowerCase) {
-      index = i;
+    if (keys[i].down == action || keys[i].up == action) {
+      return i;
     }
   }
-  return index;
+  return 255; // 255=Unknown (shonky but keeping memory down)
 }
-Key findKey(int key) {
+Key &findKey(uint8_t key) {
   for (uint8_t i = 0; i < sizeof(keys) / sizeof(Key); i++) {
     // Only checks lowerCase
     if (key == keys[i].lowerCase) {
@@ -33,20 +34,15 @@ Key findKey(int key) {
     }
   }
 }
-uint8_t inArray(String key) {
-  uint8_t index = 255; // 255=Unknown (shonky but keeping memory down)
-  for (uint8_t i = 0; i < sizeof(keys) / sizeof(Key); i++) {
-    // Only check lowerCase
-    if (key == keys[i].lowerCase) {
-      index = i;
+bool inArray(uint8_t needle, uint8_t haystack[]) {
+  bool found = false;
+  for (uint8_t i = 0; i < sizeof(haystack); i++) {
+    if (haystack[i] == needle) {
+      found = true;
     }
   }
-  return index;
+  return found;
 }
-int modifiers[] = {KEY_LEFT_SHIFT, KEY_LEFT_SHIFT};
-uint8_t indexShift = findIndex(KEY_LEFT_SHIFT);
-uint8_t indexCapsLock = findIndex(KEY_LEFT_SHIFT);
-bool debugging = false;
 bool capsLock = false;
 void keyboardSerialInit() {
   keySerial.begin(4800);
@@ -56,30 +52,50 @@ char keyboardSerialEcho() {
   if (keySerial.available()) {
     uint8_t action = keySerial.read();
     // For every set (nb: sizeof includes all nested items)
-    bool keyFound = false;
-    for (uint8_t i = 0; i < sizeof(keys) / sizeof(Key); i++) {
-      Key &key = keys[i];
-      bool capitalize = findKey(KEY_LEFT_SHIFT).pressed || capsLock;
-      if (action == key.down && !key.pressed) {
-        if (key.lowerCase == KEY_LEFT_SHIFT) {
-          capsLock = !capsLock;
-        }
-        key.pressed = true;
-        keyFound = true;
-        debugging &&Serial.print("[v] ");
-        Serial.print(capitalize ? key.upperCase : key.lowerCase);
-        debugging &&Serial.println("");
-        return capitalize ? key.upperCase : key.lowerCase;
-      } else if (action == key.up && key.pressed) {
-        key.pressed = false;
-        keyFound = true;
-        debugging &&Serial.print("[^] ");
-        debugging &&Serial.println(capitalize ? key.upperCase : key.lowerCase);
-      }
+    uint8_t keyIndex = findKeyIndexFromAction(action);
+    if (debuggingHeavy) {
+      Serial.print("\n\nAction: ");
+      Serial.print(action);
+      Serial.print("\nkeyIndex: ");
+      Serial.print(keyIndex);
     }
-    if (!keyFound) {
-      debugging &&Serial.print("Unknown: ");
-      debugging &&Serial.println(action);
+    bool keyFound = keyIndex != 255;
+    if (keyFound) {
+      // Key &actionKey = findKey(action);
+      Key &actionKey = keys[keyIndex];
+      bool capitalize = findKey(KEY_LEFT_SHIFT).pressed || capsLock;
+      if (action == actionKey.down && !actionKey.pressed) {
+        if (actionKey.lowerCase == KEY_CAPS_LOCK) {
+          capsLock = !capsLock;
+          debugging &&capsLock ? Serial.print("[CAPS]")
+                               : Serial.print("[!CAPS]");
+        }
+        actionKey.pressed = true;
+        keyFound = true;
+        if (debugging) {
+          Serial.print(F("([v]"));
+          Serial.print(capitalize ? char(actionKey.upperCase)
+                                  : char(actionKey.lowerCase));
+          Serial.print(F(") "));
+        }
+        if (!inArray(actionKey.lowerCase, modifiers)) {
+          return capitalize ? actionKey.upperCase : actionKey.lowerCase;
+        }
+      } else if (action == actionKey.up && actionKey.pressed) {
+        actionKey.pressed = false;
+        keyFound = true;
+        if (debugging) {
+          Serial.print(F("([^]"));
+          Serial.print(capitalize ? char(actionKey.upperCase)
+                                  : char(actionKey.lowerCase));
+          Serial.print(F(") "));
+        }
+      }
+    } else {
+      debuggingHeavy &&Serial.print(F("(Unexpected:"));
+      debuggingHeavy &&Serial.print(action);
+      debuggingHeavy &&Serial.print(F(") "));
     }
   }
+  return 0;
 }
