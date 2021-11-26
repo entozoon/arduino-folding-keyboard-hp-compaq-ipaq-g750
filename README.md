@@ -2,4 +2,5 @@
 
     Keyboard ➡ RS232<->TTL MAX232 Module ➡ Arduino
 
-(All 3.3V)
+3.3V or 5V
+RX on Arduino is D9
