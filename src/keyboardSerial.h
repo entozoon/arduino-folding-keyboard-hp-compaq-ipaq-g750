@@ -1,6 +1,6 @@
 #include <Arduino.h>
 #include <SoftwareSerial.h>
-SoftwareSerial keySerial(9, 10); // RX (D2), TX
+SoftwareSerial keySerial(9, 10); // RX, TX
 typedef struct {
   uint8_t lowerCase;
   uint8_t upperCase;
@@ -15,8 +15,8 @@ Key keys[]{
     {KEY_CAPS_LOCK, 0, false, 74, 66},
 };
 uint8_t modifiers[] = {KEY_LEFT_SHIFT, KEY_CAPS_LOCK};
-bool debugging = false;
-bool debuggingHeavy = false;
+bool debugging = true;
+bool debuggingHeavy = true;
 // Find index for special chars
 uint8_t findKeyIndexFromAction(uint8_t action) {
   for (uint8_t i = 0; i < sizeof(keys) / sizeof(Key); i++) {
